@@ -53,14 +53,18 @@ student-management/
 
 ## Installation Guide
 
-1. Clone the repository
-2. Set up the directory structure as shown above
-3. Place UI resources in their respective folders:
+1. Clone the repository:
+```bash
+git clone https://github.com/your-username/student-management.git
+cd student-management
+```
+
+2. Place UI resources in their respective folders:
    - Java files → src/
    - Images → resources/images/
    - Icons → resources/icons/
 
-4. Compile and run:
+3. Compile and run:
 ```bash
 javac -d bin -sourcepath src src/Main.java
 java -cp bin Main
