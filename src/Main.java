@@ -1,7 +1,6 @@
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.*;
-import util.DatabaseConnection;
 import view.MainFrame;
 
 public class Main {
@@ -14,19 +13,6 @@ public class Main {
         
         SwingUtilities.invokeLater(() -> {
             try {
-                // Initialize database
-                try {
-                    LOGGER.info("Initializing database connection...");
-                    DatabaseConnection.initializeDatabase();
-                    LOGGER.info("Database initialized successfully");
-                } catch (Exception e) {
-                    LOGGER.log(Level.WARNING, "Could not connect to database: " + e.getMessage(), e);
-                    System.out.println("Could not connect to database: " + e.getMessage());
-                    System.out.println("Switching to in-memory storage.");
-                    DatabaseConnection.setUseInMemoryStorage(true);
-                    LOGGER.info("Switched to in-memory storage");
-                }
-                
                 // Apply platform-specific enhancements
                 UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
                 

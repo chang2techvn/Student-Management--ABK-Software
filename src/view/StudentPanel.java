@@ -1,9 +1,18 @@
 package view;
 
-import java.awt.*;
+import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Component;
+import java.awt.Dimension;
+import java.awt.FlowLayout;
+import java.awt.Font;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
+import java.awt.Insets;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
-import java.util.List;
+import java.util.ArrayList;
+import java.util.Set;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.table.DefaultTableCellRenderer;
@@ -14,7 +23,7 @@ import model.StudentManager;
 import util.*;
 
 public class StudentPanel extends JPanel {
-    private StudentManager studentManager;
+    private final StudentManager studentManager;
     private RoundedTextField idField, nameField, scoreField, searchField;
     private JTable studentTable;
     private DefaultTableModel tableModel;
@@ -112,10 +121,10 @@ public class StudentPanel extends JPanel {
         CustomButton deleteButton = CustomButton.createDangerButton("Delete");
         CustomButton clearButton = CustomButton.createGlassButton("Clear");
         
-        addButton.addActionListener(e -> addStudent());
-        updateButton.addActionListener(e -> updateStudent());
-        deleteButton.addActionListener(e -> deleteStudent());
-        clearButton.addActionListener(e -> clearFields());
+        addButton.addActionListener(_ -> addStudent());
+        updateButton.addActionListener(_ -> updateStudent());
+        deleteButton.addActionListener(_ -> deleteStudent());
+        clearButton.addActionListener(_ -> clearFields());
         
         actionPanel.add(addButton);
         actionPanel.add(updateButton);
@@ -133,8 +142,8 @@ public class StudentPanel extends JPanel {
         CustomButton searchButton = CustomButton.createPrimaryButton("Search");
         CustomButton refreshButton = CustomButton.createGlassButton("Show All");
         
-        searchButton.addActionListener(e -> searchStudent());
-        refreshButton.addActionListener(e -> refreshTable());
+        searchButton.addActionListener(_ -> searchStudent());
+        refreshButton.addActionListener(_ -> refreshTable());
         
         searchPanel.add(searchLabel);
         searchPanel.add(searchField);
@@ -204,23 +213,14 @@ public class StudentPanel extends JPanel {
                 // Style rank column
                 if (column == 3 && value != null) {
                     String rank = value.toString();
-                    switch (rank) {
-                        case "Excellent":
-                            setForeground(new Color(106, 27, 154)); // Purple
-                            break;
-                        case "Very Good":
-                            setForeground(new Color(0, 137, 123)); // Teal
-                            break;
-                        case "Good":
-                            setForeground(new Color(0, 121, 107)); // Green
-                            break;
-                        case "Medium":
-                            setForeground(new Color(239, 108, 0)); // Orange
-                            break;
-                        case "Fail":
-                            setForeground(new Color(211, 47, 47)); // Red
-                            break;
-                    }
+                    setForeground(switch (rank) {
+                        case "Excellent" -> ColorScheme.EXCELLENT_COLOR;
+                        case "Very Good" -> ColorScheme.VERY_GOOD_COLOR;
+                        case "Good" -> ColorScheme.GOOD_COLOR;
+                        case "Medium" -> ColorScheme.MEDIUM_COLOR;
+                        case "Fail" -> ColorScheme.FAIL_COLOR;
+                        default -> ColorScheme.TEXT;
+                    });
                 }
                 
                 return c;
@@ -294,8 +294,6 @@ public class StudentPanel extends JPanel {
         
         add(splitPane, BorderLayout.CENTER);
     }
-
-    // Cập nhật phương thức addStudent trong StudentPanel để hiển thị thông báo lỗi khi ID không đúng định dạng
 
     private void addStudent() {
         try {
@@ -399,32 +397,32 @@ public class StudentPanel extends JPanel {
             return;
         }
         
-        // Check if the search text is a number (score) or text (ID)
+        // Try to parse as score first
         try {
             double score = Double.parseDouble(searchText);
-            // If it's a valid number, search by score
             if (score < 0 || score > 10) {
                 showStatus("Score must be between 0 and 10", false);
                 return;
             }
             
-            List<Student> foundStudents = studentManager.findStudentsByScore(score);
+            Set<Student> foundStudents = studentManager.findStudentsByScore(score);
             
             if (!foundStudents.isEmpty()) {
                 tableModel.setRowCount(0);
+                java.util.List<Student> sortedResults = new ArrayList<>(foundStudents);
+                sortedResults.sort((s1, s2) -> Double.compare(s2.getScore(), s1.getScore()));
                 
-                for (Student student : foundStudents) {
-                    Object[] row = {student.getId(), student.getName(), student.getScore(), student.getRank()};
+                for (Student s : sortedResults) {
+                    Object[] row = {s.getId(), s.getName(), s.getScore(), s.getRank()};
                     tableModel.addRow(row);
                 }
-                
                 showStatus("Found " + foundStudents.size() + " student(s) with score " + score, true);
             } else {
                 showStatus("No students found with score " + score, false);
                 refreshTable();
             }
         } catch (NumberFormatException e) {
-            // If it's not a number, search by ID
+            // Try ID search first
             Student student = studentManager.findStudentById(searchText);
             
             if (student != null) {
@@ -437,8 +435,23 @@ public class StudentPanel extends JPanel {
                 nameField.setText(student.getName());
                 scoreField.setText(String.valueOf(student.getScore()));
                 showStatus("Student found", true);
+                return;
+            }
+            
+            // Try name search
+            Set<Student> nameResults = studentManager.findStudentsByName(searchText);
+            if (!nameResults.isEmpty()) {
+                tableModel.setRowCount(0);
+                java.util.List<Student> sortedResults = new ArrayList<>(nameResults);
+                sortedResults.sort((s1, s2) -> Double.compare(s2.getScore(), s1.getScore()));
+                
+                for (Student s : sortedResults) {
+                    Object[] row = {s.getId(), s.getName(), s.getScore(), s.getRank()};
+                    tableModel.addRow(row);
+                }
+                showStatus("Found " + nameResults.size() + " student(s) matching name: " + searchText, true);
             } else {
-                showStatus("Student with ID " + searchText + " not found", false);
+                showStatus("No students found", false);
                 refreshTable();
             }
         }
@@ -454,10 +467,10 @@ public class StudentPanel extends JPanel {
 
     private void refreshTable() {
         tableModel.setRowCount(0);
-        List<Student> sortedStudents = studentManager.getSortedStudentsByScore();
+        java.util.List<Student> sortedStudents = studentManager.getSortedStudentsByScore();
         
-        for (Student student : sortedStudents) {
-            Object[] row = {student.getId(), student.getName(), student.getScore(), student.getRank()};
+        for (Student s : sortedStudents) {
+            Object[] row = {s.getId(), s.getName(), s.getScore(), s.getRank()};
             tableModel.addRow(row);
         }
     }
@@ -466,8 +479,7 @@ public class StudentPanel extends JPanel {
         statusLabel.setText(message);
         statusLabel.setForeground(isSuccess ? ColorScheme.SUCCESS : ColorScheme.DANGER);
         
-        // Create a timer to clear the status after 5 seconds
-        Timer timer = new Timer(5000, e -> statusLabel.setText(" "));
+        javax.swing.Timer timer = new javax.swing.Timer(5000, _ -> statusLabel.setText(" "));
         timer.setRepeats(false);
         timer.start();
     }

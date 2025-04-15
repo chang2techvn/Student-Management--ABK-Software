@@ -1,11 +1,14 @@
 package view;
 
 import java.awt.*;
+import java.awt.event.FocusAdapter;
+import java.awt.event.FocusEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.geom.RoundRectangle2D;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.table.DefaultTableCellRenderer;
@@ -17,27 +20,62 @@ import model.StudentManager;
 import util.*;
 
 public class StudentFormPanel extends JPanel {
-    private StudentManager studentManager;
-    private RoundedTextField idField, nameField, scoreField, searchField;
-    private JTable studentTable;
-    private DefaultTableModel tableModel;
-    private JLabel statusLabel;
-    private DashboardPanel dashboardPanel;
-    // Mouse drag tracking variables
+    private final StudentManager studentManager;
+    private final DashboardPanel dashboardPanel;
+    private final RoundedTextField idField;
+    private final RoundedTextField nameField;
+    private final RoundedTextField scoreField; 
+    private final RoundedTextField searchField;
+    private final JTable studentTable;
+    private final DefaultTableModel tableModel;
+    private final JLabel statusLabel;
+    private Timer autoUpdateTimer;
+    private boolean isEditing = false;
+    
+    // Fields for drag-and-drop functionality
     private int dragStartRow = -1;
     private int dragEndRow = -1;
     private boolean isDragging = false;
-    
+
     public StudentFormPanel(StudentManager studentManager, DashboardPanel dashboardPanel) {
         this.studentManager = studentManager;
         this.dashboardPanel = dashboardPanel;
+        
+        // Initialize all final fields
+        String[] columns = {"", "ID", "Name", "Score", "Rank"};
+        this.tableModel = new DefaultTableModel(columns, 0) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return column == 0;
+            }
+            
+            @Override
+            public Class<?> getColumnClass(int columnIndex) {
+                return columnIndex == 0 ? Boolean.class : Object.class;
+            }
+        };
+        
+        this.studentTable = new JTable(this.tableModel);
+        this.idField = new RoundedTextField(20);
+        this.nameField = new RoundedTextField(20);
+        this.scoreField = new RoundedTextField(20);
+        this.searchField = new RoundedTextField(20);
+        this.statusLabel = new JLabel(" ");
+        this.autoUpdateTimer = new Timer(500, _ -> {
+            if (!isEditing) {
+                updateFromModel();
+            }
+        });
         
         setLayout(new BorderLayout());
         setOpaque(false);
         
         initComponents();
+        setupAutoUpdate();
+        setupEditingListeners();
+        refreshTable();
     }
-    
+
     private void initComponents() {
         // Main panel with grid layout
         JPanel mainPanel = new JPanel(new GridBagLayout());
@@ -115,7 +153,6 @@ public class StudentFormPanel extends JPanel {
         gbc.gridx = 0;
         gbc.gridy = 1;
         gbc.weightx = 1.0;
-        idField = new RoundedTextField(20);
         idField.setPlaceholder("Enter student ID");
         fieldsPanel.add(idField, gbc);
         
@@ -131,7 +168,6 @@ public class StudentFormPanel extends JPanel {
         gbc.gridx = 0;
         gbc.gridy = 3;
         gbc.weightx = 1.0;
-        nameField = new RoundedTextField(20);
         nameField.setPlaceholder("Enter student name");
         fieldsPanel.add(nameField, gbc);
         
@@ -147,7 +183,6 @@ public class StudentFormPanel extends JPanel {
         gbc.gridx = 0;
         gbc.gridy = 5;
         gbc.weightx = 1.0;
-        scoreField = new RoundedTextField(20);
         scoreField.setPlaceholder("Enter score (0-10)");
         fieldsPanel.add(scoreField, gbc);
         
@@ -155,7 +190,6 @@ public class StudentFormPanel extends JPanel {
         gbc.gridx = 0;
         gbc.gridy = 6;
         gbc.gridwidth = 2;
-        statusLabel = new JLabel(" ");
         statusLabel.setFont(new Font("Segoe UI", Font.ITALIC, 14));
         statusLabel.setForeground(ColorScheme.PRIMARY);
         fieldsPanel.add(statusLabel, gbc);
@@ -169,11 +203,10 @@ public class StudentFormPanel extends JPanel {
         JPanel searchPanel = new JPanel(new BorderLayout(10, 0));
         searchPanel.setOpaque(false);
         
-        searchField = new RoundedTextField(20);
         searchField.setPlaceholder("Search by keyword (ID, name, score, rank)");
         
         CustomButton searchButton = CustomButton.createPrimaryButton("Search");
-        searchButton.addActionListener(e -> searchStudent());
+        searchButton.addActionListener(_ -> searchStudent());
         
         searchPanel.add(searchField, BorderLayout.CENTER);
         searchPanel.add(searchButton, BorderLayout.EAST);
@@ -192,10 +225,10 @@ public class StudentFormPanel extends JPanel {
         CustomButton deleteButton = CustomButton.createDangerButton("Delete");
         CustomButton clearButton = CustomButton.createGlassButton("Clear");
         
-        addButton.addActionListener(e -> addStudent());
-        updateButton.addActionListener(e -> updateStudent());
-        deleteButton.addActionListener(e -> deleteStudent());
-        clearButton.addActionListener(e -> clearFields());
+        addButton.addActionListener(_ -> addStudent());
+        updateButton.addActionListener(_ -> updateStudent());
+        deleteButton.addActionListener(_ -> deleteStudent());
+        clearButton.addActionListener(_ -> clearFields());
         
         buttonPanel.add(addButton);
         buttonPanel.add(updateButton);
@@ -249,7 +282,7 @@ public class StudentFormPanel extends JPanel {
         sortComboBox.setForeground(ColorScheme.TEXT);
         sortComboBox.setPreferredSize(new Dimension(180, 30));
         
-        sortComboBox.addActionListener(e -> {
+        sortComboBox.addActionListener(_ -> {
             String selected = (String) sortComboBox.getSelectedItem();
             sortStudents(selected);
         });
@@ -262,20 +295,6 @@ public class StudentFormPanel extends JPanel {
         panel.add(headerPanel, BorderLayout.NORTH);
         
         // Create table
-        String[] columns = {"", "ID", "Name", "Score", "Rank"};
-        tableModel = new DefaultTableModel(columns, 0) {
-            @Override
-            public boolean isCellEditable(int row, int column) {
-                return column == 0; // Only allow editing checkbox column
-            }
-            
-            @Override
-            public Class<?> getColumnClass(int columnIndex) {
-                return columnIndex == 0 ? Boolean.class : Object.class;
-            }
-        };
-        
-        studentTable = new JTable(tableModel);
         studentTable.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
         studentTable.setRowHeight(40);
         studentTable.setShowGrid(false);
@@ -340,23 +359,14 @@ public class StudentFormPanel extends JPanel {
                 // Style rank column
                 if (column == 4 && value != null) {
                     String rank = value.toString();
-                    switch (rank) {
-                        case "Excellent":
-                            setForeground(ColorScheme.EXCELLENT_COLOR);
-                            break;
-                        case "Very Good":
-                            setForeground(ColorScheme.VERY_GOOD_COLOR);
-                            break;
-                        case "Good":
-                            setForeground(ColorScheme.GOOD_COLOR);
-                            break;
-                        case "Medium":
-                            setForeground(ColorScheme.MEDIUM_COLOR);
-                            break;
-                        case "Fail":
-                            setForeground(ColorScheme.FAIL_COLOR);
-                            break;
-                    }
+                    setForeground(switch (rank) {
+                        case "Excellent" -> ColorScheme.EXCELLENT_COLOR;
+                        case "Very Good" -> ColorScheme.VERY_GOOD_COLOR;
+                        case "Good" -> ColorScheme.GOOD_COLOR;
+                        case "Medium" -> ColorScheme.MEDIUM_COLOR;
+                        case "Fail" -> ColorScheme.FAIL_COLOR;
+                        default -> ColorScheme.TEXT;
+                    });
                 }
                 
                 return c;
@@ -484,16 +494,16 @@ public class StudentFormPanel extends JPanel {
         buttonPanel.setBorder(BorderFactory.createEmptyBorder(15, 0, 0, 0));
 
         CustomButton selectAllButton = CustomButton.createGlassButton("Select All");
-        selectAllButton.addActionListener(e -> selectAllStudents());
+        selectAllButton.addActionListener(_ -> selectAllStudents());
 
         CustomButton deselectAllButton = CustomButton.createGlassButton("Deselect All");
-        deselectAllButton.addActionListener(e -> deselectAllStudents());
+        deselectAllButton.addActionListener(_ -> deselectAllStudents());
 
         CustomButton deleteSelectedButton = CustomButton.createDangerButton("Delete Selected");
-        deleteSelectedButton.addActionListener(e -> deleteSelectedStudents());
+        deleteSelectedButton.addActionListener(_ -> deleteSelectedStudents());
 
         CustomButton refreshButton = CustomButton.createGlassButton("Refresh");
-        refreshButton.addActionListener(e -> refreshTable());
+        refreshButton.addActionListener(_ -> refreshTable());
 
         JLabel hintLabel = new JLabel("Tip: Hold Shift and drag to select multiple rows");
         hintLabel.setFont(new Font("Segoe UI", Font.ITALIC, 12));
@@ -521,44 +531,173 @@ public class StudentFormPanel extends JPanel {
         return panel;
     }
     
-    private void sortStudents(String sortOption) {
-        List<Student> sortedStudents;
-        
-        switch (sortOption) {
-            case "Score (High to Low)":
-                sortedStudents = studentManager.getSortedStudentsByScore();
-                break;
-            case "Score (Low to High)":
-                sortedStudents = studentManager.getSortedStudentsByScoreAscending();
-                break;
-            case "Name (A-Z)":
-                sortedStudents = studentManager.getSortedStudentsByName(true);
-                break;
-            case "Name (Z-A)":
-                sortedStudents = studentManager.getSortedStudentsByName(false);
-                break;
-            case "ID":
-                sortedStudents = studentManager.getSortedStudentsById();
-                break;
-            default:
-                sortedStudents = studentManager.getSortedStudentsByScore();
-                break;
+    private void setupAutoUpdate() {
+        autoUpdateTimer.start();
+    }
+
+    private void setupEditingListeners() {
+        // Add focus listeners to all text fields
+        idField.addFocusListener(new FocusAdapter() {
+            @Override
+            public void focusGained(FocusEvent e) {
+                isEditing = true;
+            }
+            @Override
+            public void focusLost(FocusEvent e) {
+                if (!nameField.hasFocus() && !scoreField.hasFocus() && !searchField.hasFocus()) {
+                    isEditing = false;
+                }
+            }
+        });
+
+        nameField.addFocusListener(new FocusAdapter() {
+            @Override
+            public void focusGained(FocusEvent e) {
+                isEditing = true;
+            }
+            @Override
+            public void focusLost(FocusEvent e) {
+                if (!idField.hasFocus() && !scoreField.hasFocus() && !searchField.hasFocus()) {
+                    isEditing = false;
+                }
+            }
+        });
+
+        scoreField.addFocusListener(new FocusAdapter() {
+            @Override
+            public void focusGained(FocusEvent e) {
+                isEditing = true;
+            }
+            @Override
+            public void focusLost(FocusEvent e) {
+                if (!idField.hasFocus() && !nameField.hasFocus() && !searchField.hasFocus()) {
+                    isEditing = false;
+                }
+            }
+        });
+
+        searchField.addFocusListener(new FocusAdapter() {
+            @Override
+            public void focusGained(FocusEvent e) {
+                isEditing = true;
+            }
+            @Override
+            public void focusLost(FocusEvent e) {
+                if (!idField.hasFocus() && !nameField.hasFocus() && !scoreField.hasFocus()) {
+                    isEditing = false;
+                }
+            }
+        });
+
+        // Add action listeners with ActionEvent parameter
+        CustomButton searchButton = CustomButton.createPrimaryButton("Search");
+        searchButton.addActionListener(_ -> searchStudent());
+        CustomButton addButton = CustomButton.createPrimaryButton("Add Student");
+        addButton.addActionListener(_ -> addStudent());
+        CustomButton updateButton = CustomButton.createSecondaryButton("Update");
+        updateButton.addActionListener(_ -> updateStudent());
+        CustomButton deleteButton = CustomButton.createDangerButton("Delete");
+        deleteButton.addActionListener(_ -> deleteStudent());
+        CustomButton clearButton = CustomButton.createGlassButton("Clear");
+        clearButton.addActionListener(_ -> clearFields());
+        CustomButton selectAllButton = CustomButton.createGlassButton("Select All");
+        selectAllButton.addActionListener(_ -> selectAllStudents());
+        CustomButton deselectAllButton = CustomButton.createGlassButton("Deselect All");
+        deselectAllButton.addActionListener(_ -> deselectAllStudents());
+        CustomButton deleteSelectedButton = CustomButton.createDangerButton("Delete Selected");
+        deleteSelectedButton.addActionListener(_ -> deleteSelectedStudents());
+        CustomButton refreshButton = CustomButton.createGlassButton("Refresh");
+        refreshButton.addActionListener(_ -> refreshTable());
+
+        JComboBox<String> sortComboBox = new JComboBox<>();
+        sortComboBox.addActionListener(_ -> {
+            String selected = (String) sortComboBox.getSelectedItem();
+            sortStudents(selected);
+        });
+
+        this.autoUpdateTimer = new Timer(500, _ -> {
+            if (!isEditing) {
+                updateFromModel();
+            }
+        });
+
+        // Add selection listener
+        studentTable.getSelectionModel().addListSelectionListener(e -> {
+            if (!e.getValueIsAdjusting() && studentTable.getSelectedRow() != -1 && !isEditing) {
+                int row = studentTable.getSelectedRow();
+                isEditing = true;
+                idField.setText(tableModel.getValueAt(row, 1).toString());
+                nameField.setText(tableModel.getValueAt(row, 2).toString());
+                scoreField.setText(tableModel.getValueAt(row, 3).toString());
+                isEditing = false;
+            }
+        });
+    }
+
+    private void updateFromModel() {
+        if (studentManager != null) {
+            List<Student> currentStudents = studentManager.getAllStudents();
+            
+            // Compare current table data with model data
+            boolean needsUpdate = false;
+            if (tableModel.getRowCount() != currentStudents.size()) {
+                needsUpdate = true;
+            } else {
+                for (int i = 0; i < currentStudents.size(); i++) {
+                    Student student = currentStudents.get(i);
+                    if (tableModel.getValueAt(i, 1) == null || 
+                        !student.getId().equals(tableModel.getValueAt(i, 1).toString())) {
+                        needsUpdate = true;
+                        break;
+                    }
+                }
+            }
+            
+            // Only update if there are changes
+            if (needsUpdate) {
+                SwingUtilities.invokeLater(() -> {
+                    // Store selection and scroll state
+                    int[] selectedRows = studentTable.getSelectedRows();
+                    Rectangle visibleRect = studentTable.getVisibleRect();
+                    
+                    refreshTable();
+                    
+                    // Restore selection and scroll state
+                    for (int row : selectedRows) {
+                        if (row < tableModel.getRowCount()) {
+                            studentTable.addRowSelectionInterval(row, row);
+                        }
+                    }
+                    studentTable.scrollRectToVisible(visibleRect);
+                });
+            }
         }
+    }
+
+    private void sortStudents(String sortOption) {
+        List<Student> sortedStudents = switch (sortOption) {
+            case "Score (High to Low)" -> studentManager.getSortedStudentsByScore();
+            case "Score (Low to High)" -> studentManager.getSortedStudentsByScoreAscending();
+            case "Name (A-Z)" -> studentManager.getSortedStudentsByName(true);
+            case "Name (Z-A)" -> studentManager.getSortedStudentsByName(false);
+            case "ID" -> studentManager.getSortedStudentsById();
+            default -> studentManager.getSortedStudentsByScore();
+        };
         
         updateTableWithStudents(sortedStudents);
     }
     
     private void updateTableWithStudents(List<Student> students) {
         tableModel.setRowCount(0);
-        
         for (Student student : students) {
             Object[] row = {false, student.getId(), student.getName(), student.getScore(), student.getRank()};
             tableModel.addRow(row);
         }
+        studentTable.repaint();
     }
     
-    // Update addStudent method to show error message when ID format is invalid
     private void addStudent() {
+        isEditing = true;
         try {
             String id = idField.getText().trim();
             String name = nameField.getText().trim();
@@ -585,18 +724,21 @@ public class StudentFormPanel extends JPanel {
 
             if (added) {
                 clearFields();
-                refreshTable(); // Make sure this is called
+                refreshTable();
                 showStatus("Student added successfully", true);
-                dashboardPanel.updateDashboard(); // Update dashboard
+                dashboardPanel.updateDashboard();
             } else {
-                showStatus("Student with ID " + id + " already exists or ID format is invalid", false);
+                showStatus("Student with ID " + id + " already exists", false);
             }
         } catch (NumberFormatException e) {
             showStatus("Invalid score format", false);
+        } finally {
+            isEditing = false;
         }
     }
     
     private void updateStudent() {
+        isEditing = true;
         try {
             String id = idField.getText().trim();
             String name = nameField.getText().trim();
@@ -625,32 +767,39 @@ public class StudentFormPanel extends JPanel {
             }
         } catch (NumberFormatException e) {
             showStatus("Invalid score format", false);
+        } finally {
+            isEditing = false;
         }
     }
     
     private void deleteStudent() {
-        String id = idField.getText().trim();
-        
-        if (id.isEmpty()) {
-            showStatus("Please enter a student ID to delete", false);
-            return;
-        }
-        
-        int confirm = JOptionPane.showConfirmDialog(this, 
-                "Are you sure you want to delete student with ID " + id + "?", 
-                "Confirm Delete", JOptionPane.YES_NO_OPTION);
-        
-        if (confirm == JOptionPane.YES_OPTION) {
-            boolean deleted = studentManager.deleteStudent(id);
+        isEditing = true;
+        try {
+            String id = idField.getText().trim();
             
-            if (deleted) {
-                clearFields();
-                refreshTable();
-                showStatus("Student deleted successfully", true);
-                dashboardPanel.updateDashboard();
-            } else {
-                showStatus("Student with ID " + id + " not found", false);
+            if (id.isEmpty()) {
+                showStatus("Please enter a student ID to delete", false);
+                return;
             }
+            
+            int confirm = JOptionPane.showConfirmDialog(this, 
+                    "Are you sure you want to delete student with ID " + id + "?", 
+                    "Confirm Delete", JOptionPane.YES_NO_OPTION);
+            
+            if (confirm == JOptionPane.YES_OPTION) {
+                boolean deleted = studentManager.deleteStudent(id);
+                
+                if (deleted) {
+                    clearFields();
+                    refreshTable();
+                    showStatus("Student deleted successfully", true);
+                    dashboardPanel.updateDashboard();
+                } else {
+                    showStatus("Student with ID " + id + " not found", false);
+                }
+            }
+        } finally {
+            isEditing = false;
         }
     }
     
@@ -662,19 +811,38 @@ public class StudentFormPanel extends JPanel {
             return;
         }
         
-        List<Student> foundStudents = studentManager.searchStudentsByKeyword(keyword);
-        
-        if (!foundStudents.isEmpty()) {
-            tableModel.setRowCount(0);
-            
-            for (Student student : foundStudents) {
-                Object[] row = {false, student.getId(), student.getName(), student.getScore(), student.getRank()};
-                tableModel.addRow(row);
+        // Try to parse as score first
+        try {
+            double score = Double.parseDouble(keyword);
+            if (score >= 0 && score <= 10) {
+                Set<Student> foundStudents = studentManager.findStudentsByScore(score);
+                updateTableWithStudents(new ArrayList<>(foundStudents));
+                showStatus("Found " + foundStudents.size() + " student(s) with score " + score, true);
+                return;
             }
-            
-            showStatus("Found " + foundStudents.size() + " student(s) matching '" + keyword + "'", true);
+        } catch (NumberFormatException e) {
+            // Not a number, continue with name/ID search
+        }
+
+        // Try exact ID match
+        Student student = studentManager.findStudentById(keyword);
+        if (student != null) {
+            List<Student> result = new ArrayList<>();
+            result.add(student);
+            updateTableWithStudents(result);
+            showStatus("Found student with ID: " + keyword, true);
+            return;
+        }
+
+        // Search by name
+        Set<Student> nameResults = studentManager.findStudentsByName(keyword);
+        if (!nameResults.isEmpty()) {
+            List<Student> sortedResults = new ArrayList<>(nameResults);
+            sortedResults.sort((s1, s2) -> Double.compare(s2.getScore(), s1.getScore()));
+            updateTableWithStudents(sortedResults);
+            showStatus("Found " + nameResults.size() + " student(s) matching: " + keyword, true);
         } else {
-            showStatus("No students found matching '" + keyword + "'", false);
+            showStatus("No students found matching: " + keyword, false);
             refreshTable();
         }
     }
@@ -689,28 +857,16 @@ public class StudentFormPanel extends JPanel {
     }
     
     private void refreshTable() {
-        // Clear existing data
         tableModel.setRowCount(0);
-        
-        // Get fresh data from the manager
         List<Student> sortedStudents = studentManager.getSortedStudentsByScore();
-        
-        // Add to table
-        for (Student student : sortedStudents) {
-            Object[] row = {false, student.getId(), student.getName(), student.getScore(), student.getRank()};
-            tableModel.addRow(row);
-        }
-        
-        // Force table to repaint
-        studentTable.repaint();
+        updateTableWithStudents(sortedStudents);
     }
     
     private void showStatus(String message, boolean isSuccess) {
         statusLabel.setText(message);
         statusLabel.setForeground(isSuccess ? ColorScheme.SUCCESS : ColorScheme.DANGER);
         
-        // Create a timer to clear the status after 5 seconds
-        Timer timer = new Timer(5000, e -> statusLabel.setText(" "));
+        Timer timer = new Timer(5000, _ -> statusLabel.setText(" "));
         timer.setRepeats(false);
         timer.start();
     }
@@ -771,6 +927,14 @@ public class StudentFormPanel extends JPanel {
             tableModel.setValueAt(false, i, 0);
         }
         studentTable.repaint();
+    }
+
+    @Override
+    public void removeNotify() {
+        super.removeNotify();
+        if (autoUpdateTimer != null) {
+            autoUpdateTimer.stop();
+        }
     }
 }
 

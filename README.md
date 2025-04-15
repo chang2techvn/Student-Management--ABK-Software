@@ -1,41 +1,91 @@
 # Student Management System - ABK Software
 
-A Java-based student management system with database support and a modern Swing UI.
+A modern Java Swing-based student management system that integrates various data structures for optimal performance.
 
 ## Features
 
-- Student information management
-- Database storage with fallback to in-memory storage
-- Modern Swing UI with system look and feel
-- Logging system for troubleshooting
+- Complete student information management (CRUD operations)
+- Advanced search with multiple criteria
+- Student sorting and filtering
+- Visual statistics and charts
+- Modern Java Swing UI
+- Performance comparison of different ADTs
+- Priority Queue implementation for student ranking
 
-## Requirements
+## System Requirements
 
-- Java 8 or higher
-- MySQL/MariaDB (optional, falls back to in-memory storage)
+- Java Development Kit (JDK) 8 or higher
+- Minimum screen resolution: 1280x720
 
-## Setup
+## Project Structure
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/chang2techvn/Student-Management--ABK-Software.git
-   cd Student-Management--ABK-Software
-   ```
-2. Configure database connection in `config.properties` (optional)
-3. Compile and run:
-   ```bash
-   javac Main.java
-   java Main
-   ```
+```
+student-management/
+│
+├── src/                    # Source code
+│   ├── main/              # Main class
+│   ├── dao/               # Data Access Objects
+│   ├── model/             # Model classes
+│   ├── util/              # Utilities and data structures
+│   └── view/              # User interface
+│
+├── bin/                    # Compiled files (.class)
+│
+├── lib/                    # External libraries
+│
+└── resources/             # Resources (images, icons)
+    ├── images/
+    └── icons/
+```
+
+## User Interface
+
+### Dashboard
+![Dashboard Panel](resources/images/DashboardPanel.png)
+The main screen showing student statistics and overview.
+
+### Student Management
+![Student Form](resources/images/StudentFormPanel.png)
+Add, edit, and manage student information with a modern form interface.
+
+### Performance Testing
+![Performance Test](resources/images/PerformanceTestPanel.png)
+Compare the performance of different data structures and algorithms.
+
+## Installation Guide
+
+1. Clone the repository
+2. Set up the directory structure as shown above
+3. Place UI resources in their respective folders:
+   - Java files → src/
+   - Images → resources/images/
+   - Icons → resources/icons/
+
+4. Compile and run:
+```bash
+javac -d bin -sourcepath src src/Main.java
+java -cp bin Main
+```
+
+## Performance Optimization
+
+The project utilizes multiple data structures for optimal performance:
+- Priority Queue (MaxHeap): Student ranking management
+- HashMap: Fast ID-based lookups
+- ArrayList: List storage and display
+- Set: Search index management
+
+## Key Components
+
+- DashboardPanel: Main statistics screen
+- StudentFormPanel: Student data management form
+- PerformanceTestPanel: ADT performance comparison
+- Custom UI Components: Modern look and feel elements
 
 ## Contributing
 
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add some amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+Please create an issue or pull request if you'd like to contribute to the project.
 
 ## License
 
-Copyright © 2024 ABK Software. All rights reserved.
+Copyright © 2025 ABK Software. All rights reserved.

@@ -5,6 +5,7 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.geom.RoundRectangle2D;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import javax.swing.*;
@@ -17,22 +18,51 @@ import model.StudentManager;
 import util.*;
 
 public class DashboardPanel extends JPanel {
-    private StudentManager studentManager;
+    private final StudentManager studentManager;
     private JTable studentTable;
     private DefaultTableModel tableModel;
     private CircularProgressBar averageScoreChart;
     private CircularProgressBar passRateChart;
     private BarChart rankDistributionChart;
-    
+    private Timer autoUpdateTimer;
+    private JPanel summaryPanel;
+    private Map<String, Integer> lastRankDistribution = new HashMap<>();
+
     public DashboardPanel(StudentManager studentManager) {
         this.studentManager = studentManager;
         setLayout(new BorderLayout());
         setOpaque(false);
+
+        // Initialize components
+        String[] columns = {"ID", "Name", "Score", "Rank"};
+        this.tableModel = new DefaultTableModel(columns, 0) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
+        };
+        
+        this.studentTable = new JTable(this.tableModel);
+        this.averageScoreChart = new CircularProgressBar();
+        this.passRateChart = new CircularProgressBar();
+        this.rankDistributionChart = new BarChart();
+        this.summaryPanel = createSummaryPanel();
         
         initComponents();
-        updateDashboard();
+        setupAutoUpdate();
     }
-    
+
+    @Override
+    public void addNotify() {
+        super.addNotify();
+        updateDashboard(); // Move initial update here
+    }
+
+    private void setupAutoUpdate() {
+        autoUpdateTimer = new Timer(500, _ -> updateDashboard());
+        autoUpdateTimer.start();
+    }
+
     private void initComponents() {
         // Main panel with grid layout
         JPanel mainPanel = new JPanel(new GridBagLayout());
@@ -49,7 +79,6 @@ public class DashboardPanel extends JPanel {
         gbc.gridy = 0;
         gbc.gridwidth = 1;
         gbc.gridheight = 1;
-        JPanel summaryPanel = createSummaryPanel();
         mainPanel.add(summaryPanel, gbc);
         
         // Middle row - Charts
@@ -158,7 +187,6 @@ public class DashboardPanel extends JPanel {
         avgScoreTitle.setFont(new Font("Segoe UI", Font.BOLD, 16));
         avgScoreTitle.setForeground(ColorScheme.TEXT);
         
-        averageScoreChart = new CircularProgressBar();
         averageScoreChart.setProgressColor(ColorScheme.SUCCESS);
         averageScoreChart.setMaxValue(10.0);
         averageScoreChart.setValue(0);
@@ -188,7 +216,6 @@ public class DashboardPanel extends JPanel {
         passRateTitle.setFont(new Font("Segoe UI", Font.BOLD, 16));
         passRateTitle.setForeground(ColorScheme.TEXT);
         
-        passRateChart = new CircularProgressBar();
         passRateChart.setProgressColor(ColorScheme.INFO);
         passRateChart.setValue(0);
         passRateChart.setSubText("of students");
@@ -220,7 +247,6 @@ public class DashboardPanel extends JPanel {
         rankDistTitle.setFont(new Font("Segoe UI", Font.BOLD, 16));
         rankDistTitle.setForeground(ColorScheme.TEXT);
         
-        rankDistributionChart = new BarChart();
         rankDistributionChart.setBarColor(ColorScheme.PRIMARY);
         
         rankDistPanel.add(rankDistTitle, BorderLayout.NORTH);
@@ -261,16 +287,6 @@ public class DashboardPanel extends JPanel {
         
         panel.add(headerPanel, BorderLayout.NORTH);
         
-        // Create table
-        String[] columns = {"ID", "Name", "Score", "Rank"};
-        tableModel = new DefaultTableModel(columns, 0) {
-            @Override
-            public boolean isCellEditable(int row, int column) {
-                return false;
-            }
-        };
-        
-        studentTable = new JTable(tableModel);
         studentTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         studentTable.setRowHeight(40);
         studentTable.setShowGrid(false);
@@ -321,24 +337,7 @@ public class DashboardPanel extends JPanel {
                 
                 // Style rank column
                 if (column == 3 && value != null) {
-                    String rank = value.toString();
-                    switch (rank) {
-                        case "Excellent":
-                            setForeground(ColorScheme.EXCELLENT_COLOR);
-                            break;
-                        case "Very Good":
-                            setForeground(ColorScheme.VERY_GOOD_COLOR);
-                            break;
-                        case "Good":
-                            setForeground(ColorScheme.GOOD_COLOR);
-                            break;
-                        case "Medium":
-                            setForeground(ColorScheme.MEDIUM_COLOR);
-                            break;
-                        case "Fail":
-                            setForeground(ColorScheme.FAIL_COLOR);
-                            break;
-                    }
+                    setForeground(getRankColor(value.toString()));
                 }
                 
                 return c;
@@ -376,46 +375,46 @@ public class DashboardPanel extends JPanel {
         return panel;
     }
     
-    // Ensure dashboard updates properly
     public void updateDashboard() {
-        System.out.println("Updating dashboard...");
+        if (studentManager == null) return;
+
         List<Student> students = studentManager.getAllStudents();
-        
-        System.out.println("Total students: " + students.size());
         
         // Update summary stats
         int totalStudents = students.size();
         double averageScore = studentManager.getAverageScore();
-        double highestScore = studentManager.getHighestScore();
-        double lowestScore = studentManager.getLowestScore();
         int passCount = studentManager.getPassCount();
         double passRate = totalStudents > 0 ? (double) passCount / totalStudents * 100 : 0;
         
-        // Update summary cards
-        JPanel summaryPanel = (JPanel) ((JPanel) getComponent(0)).getComponent(0);
+        // Update components
+        updateSummaryCards(totalStudents, averageScore, passRate);
+        updateCharts(averageScore, passRate);
+        updateRankDistribution();
+        updateTopStudentsTable();
         
-        // Total Students
+        revalidate();
+        repaint();
+    }
+
+    private void updateSummaryCards(int totalStudents, double averageScore, double passRate) {
         JPanel totalStudentsCard = (JPanel) summaryPanel.getComponent(0);
         JPanel totalStudentsContent = (JPanel) totalStudentsCard.getComponent(0);
         JLabel totalStudentsValue = (JLabel) totalStudentsContent.getComponent(1);
         totalStudentsValue.setText(String.valueOf(totalStudents));
         
-        // Average Score
         JPanel avgScoreCard = (JPanel) summaryPanel.getComponent(1);
         JPanel avgScoreContent = (JPanel) avgScoreCard.getComponent(0);
         JLabel avgScoreValue = (JLabel) avgScoreContent.getComponent(1);
         avgScoreValue.setText(String.format("%.2f", averageScore));
         
-        // Pass Rate
         JPanel passRateCard = (JPanel) summaryPanel.getComponent(2);
         JPanel passRateContent = (JPanel) passRateCard.getComponent(0);
         JLabel passRateValue = (JLabel) passRateContent.getComponent(1);
         passRateValue.setText(String.format("%.1f%%", passRate));
         
-        // Excellent Students
         int excellentCount = 0;
-        for (Student student : students) {
-            if (student.getRank().equals("Excellent")) {
+        for (Student student : studentManager.getAllStudents()) {
+            if ("Excellent".equals(student.getRank())) {
                 excellentCount++;
             }
         }
@@ -423,47 +422,68 @@ public class DashboardPanel extends JPanel {
         JPanel excellentContent = (JPanel) excellentCard.getComponent(0);
         JLabel excellentValue = (JLabel) excellentContent.getComponent(1);
         excellentValue.setText(String.valueOf(excellentCount));
-        
-        // Update charts
+    }
+
+    private void updateCharts(double averageScore, double passRate) {
         averageScoreChart.setValue(averageScore);
         averageScoreChart.setText(String.format("%.2f", averageScore));
         
         passRateChart.setValue(passRate);
         passRateChart.setText(String.format("%.1f%%", passRate));
-        
-        // Update rank distribution chart
-        Map<String, Integer> rankCounts = studentManager.getRankDistribution();
-        List<Double> values = new ArrayList<>();
-        List<String> labels = new ArrayList<>();
-        
-        values.add((double) rankCounts.get("Excellent"));
-        values.add((double) rankCounts.get("Very Good"));
-        values.add((double) rankCounts.get("Good"));
-        values.add((double) rankCounts.get("Medium"));
-        values.add((double) rankCounts.get("Fail"));
-        
-        labels.add("Excellent");
-        labels.add("Very Good");
-        labels.add("Good");
-        labels.add("Medium");
-        labels.add("Fail");
-        
-        rankDistributionChart.setData(values, labels);
-        
-        // Update table with top students (max 10) using the new MaxHeapPriorityQueue
+    }
+
+    private void updateRankDistribution() {
+        Map<String, Integer> currentRankCounts = studentManager.getRankDistribution();
+
+        // Check if the data has changed
+        if (!currentRankCounts.equals(lastRankDistribution)) {
+            lastRankDistribution = new HashMap<>(currentRankCounts);
+
+            List<Double> values = new ArrayList<>();
+            List<String> labels = new ArrayList<>();
+
+            values.add((double) currentRankCounts.get("Excellent"));
+            values.add((double) currentRankCounts.get("Very Good"));
+            values.add((double) currentRankCounts.get("Good"));
+            values.add((double) currentRankCounts.get("Medium"));
+            values.add((double) currentRankCounts.get("Fail"));
+
+            labels.add("Excellent");
+            labels.add("Very Good");
+            labels.add("Good");
+            labels.add("Medium");
+            labels.add("Fail");
+
+            rankDistributionChart.setData(values, labels);
+        }
+    }
+
+    private void updateTopStudentsTable() {
         tableModel.setRowCount(0);
-        
-        // Use the new getTopStudents method which uses MaxHeapPriorityQueue
         List<Student> topStudents = studentManager.getTopStudents(10);
         
         for (Student student : topStudents) {
             Object[] row = {student.getId(), student.getName(), student.getScore(), student.getRank()};
             tableModel.addRow(row);
         }
-        
-        // Force repaint
-        revalidate();
-        repaint();
-        System.out.println("Dashboard updated successfully");
+    }
+
+    private Color getRankColor(String rank) {
+        return switch (rank) {
+            case "Excellent" -> ColorScheme.EXCELLENT_COLOR;
+            case "Very Good" -> ColorScheme.VERY_GOOD_COLOR;
+            case "Good" -> ColorScheme.GOOD_COLOR;
+            case "Medium" -> ColorScheme.MEDIUM_COLOR;
+            case "Fail" -> ColorScheme.FAIL_COLOR;
+            default -> ColorScheme.TEXT;
+        };
+    }
+
+    @Override
+    public void removeNotify() {
+        super.removeNotify();
+        if (autoUpdateTimer != null) {
+            autoUpdateTimer.stop();
+        }
     }
 }

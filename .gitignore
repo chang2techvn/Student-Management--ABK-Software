@@ -1,5 +1,6 @@
 # Compiled class files
 *.class
+bin/
 
 # Build directories
 /build/
@@ -8,13 +9,13 @@
 /out/
 /dist/
 
-# IDE files
+# IDE specific files
 .idea/
+.vscode/
 *.iml
 .settings/
 .project
 .classpath
-.vscode/
 
 # Logs
 *.log
@@ -25,9 +26,22 @@
 *.sqlite
 *.sqlite3
 
-# System files
+# System Files
 .DS_Store
 Thumbs.db
+
+# Temporary files
+*.swp
+*~
+
+# Package Files
+*.jar
+*.war
+*.nar
+*.ear
+*.zip
+*.tar.gz
+*.rar
 
 # Maven
 target/
