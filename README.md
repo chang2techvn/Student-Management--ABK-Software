@@ -40,17 +40,16 @@ student-management/
 
 ## User Interface
 
-### Dashboard
-![Dashboard Panel](resources/images/DashboardPanel.png)
-The main screen showing student statistics and overview.
+## Interface Screenshots
 
-### Student Management
-![Student Form](resources/images/StudentFormPanel.png)
-Add, edit, and manage student information with a modern form interface.
+### Dashboard Panel
+![Dashboard Panel](./resourcesimages/DashboardPanel.png)
 
-### Performance Testing
-![Performance Test](resources/images/PerformanceTestPanel.png)
-Compare the performance of different data structures and algorithms.
+### Student Form Panel
+![Student Form Panel](./resourcesimages/StudentFormPanel.png)
+
+### Performance Test Panel
+![Performance Test Panel](./resourcesimages/PerformanceTestPanel.png)
 
 ## Installation Guide
 
