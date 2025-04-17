@@ -40,8 +40,6 @@ student-management/
 
 ## User Interface
 
-## Interface Screenshots
-
 ### Dashboard Panel
 ![Dashboard Panel](./resourcesimages/DashboardPanel.png)
 
@@ -55,7 +53,7 @@ student-management/
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/your-username/student-management.git
+git clone https://github.com/chang2techvn/Student-Management--ABK-Software.git
 cd student-management
 ```
 
