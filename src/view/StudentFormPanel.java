@@ -660,6 +660,7 @@ public class StudentFormPanel extends JPanel {
                     int[] selectedRows = studentTable.getSelectedRows();
                     Rectangle visibleRect = studentTable.getVisibleRect();
                     
+                    // Refresh with current sorting
                     refreshTable();
                     
                     // Restore selection and scroll state
@@ -673,8 +674,11 @@ public class StudentFormPanel extends JPanel {
             }
         }
     }
+    private String currentSortOption = "Score (High to Low)"; // Default sorting
 
     private void sortStudents(String sortOption) {
+        autoUpdateTimer.stop(); // Pause timer
+        currentSortOption = sortOption; // Store the selected sorting option
         List<Student> sortedStudents = switch (sortOption) {
             case "Score (High to Low)" -> studentManager.getSortedStudentsByScore();
             case "Score (Low to High)" -> studentManager.getSortedStudentsByScoreAscending();
@@ -685,6 +689,7 @@ public class StudentFormPanel extends JPanel {
         };
         
         updateTableWithStudents(sortedStudents);
+        autoUpdateTimer.restart(); // Resume timer
     }
     
     private void updateTableWithStudents(List<Student> students) {
@@ -857,8 +862,14 @@ public class StudentFormPanel extends JPanel {
     }
     
     private void refreshTable() {
-        tableModel.setRowCount(0);
-        List<Student> sortedStudents = studentManager.getSortedStudentsByScore();
+        List<Student> sortedStudents = switch (currentSortOption) {
+            case "Score (High to Low)" -> studentManager.getSortedStudentsByScore();
+            case "Score (Low to High)" -> studentManager.getSortedStudentsByScoreAscending();
+            case "Name (A-Z)" -> studentManager.getSortedStudentsByName(true);
+            case "Name (Z-A)" -> studentManager.getSortedStudentsByName(false);
+            case "ID" -> studentManager.getSortedStudentsById();
+            default -> studentManager.getSortedStudentsByScore();
+        };
         updateTableWithStudents(sortedStudents);
     }
     
